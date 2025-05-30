@@ -8,7 +8,7 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Global redirect to docs
+# Global redirect to docs -- todo: remove in final version
 @app.get("/")
 async def root():
     return RedirectResponse(url="/docs")

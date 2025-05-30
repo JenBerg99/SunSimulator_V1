@@ -1,21 +1,8 @@
-from astral.location import LocationInfo
-from astral.sun import elevation, azimuth
-from models import Location, TimeSettings, SunPosition, WeatherInfo, SunLightProperties
+from cache import cache
+from models.SunLightProperties import SunLightProperties
+from models.CompleteModel import CompleteModel, CompleteModelSmall
 from typing import Tuple
 import math
-import datetime
-
-def calculate_sun_position(cacheLocation: Location, cacheTimeSettings: TimeSettings) -> SunPosition:
-    city = LocationInfo(latitude=cacheLocation.latitude, longitude=cacheLocation.longitude)
-
-    altitude = elevation(observer=city.observer, dateandtime=cacheTimeSettings.current_time)
-    az = azimuth(observer=city.observer, dateandtime=cacheTimeSettings.current_time)
-
-    return SunPosition(
-        altitude=altitude,
-        azimuth=az,
-        manual_override=False
-    )
 
 def kelvin_to_rgb(temp_k: int) -> Tuple[int, int, int]:
     temp = temp_k / 100
@@ -31,38 +18,79 @@ def kelvin_to_rgb(temp_k: int) -> Tuple[int, int, int]:
 
     return int(red), int(green), int(blue)
 
-def calculate_sunlight_properties(
-    sun_position: SunPosition,
-    weather: WeatherInfo,
-    current_time: datetime
-) -> SunLightProperties:
-    # Keine Sonne sichtbar
-    if sun_position.altitude <= 0:
-        return SunLightProperties(
+def calculate_sunlight_properties(complete_model: CompleteModelSmall) -> CompleteModel:
+    """
+    Calculates sunlight properties such as brightness and color temperature
+    based on sun elevation and weather conditions, and updates the given model.
+    """
+
+    # Extract sun elevation and cloud coverage from the input model
+    elevation = complete_model.sunposition.elevation
+    cloud_coverage = max(0, min(complete_model.weatherinfo.cloud_coverage_percent, 100))  # Clamp to [0, 100]
+
+    # Case: Sun is below the horizon → no direct sunlight
+    if elevation <= 0:
+        # Assumption: No sunlight when sun is below the horizon, so brightness = 0
+        # Color temperature is set to 2000K as a placeholder, but in reality, there's no sunlight
+        # RGB color is set to black to represent total absence of light
+        sunlight = SunLightProperties(
             brightness_percent=0.0,
             color_temperature_k=2000,
             rgb_color=(0, 0, 0)
         )
 
-    # Intensität basierend auf Sonnenhöhe
-    base_intensity = math.sin(math.radians(sun_position.altitude)) * 100
-    cloud_factor = 1 - weather.cloud_coverage_percent / 100
-    brightness = max(0, min(base_intensity * cloud_factor, 100))
-
-    # Farbtemperatur basierend auf Höhe
-    if sun_position.altitude < 10:
-        color_temp = 2000
-    elif sun_position.altitude > 60:
-        color_temp = 6500
     else:
-        # Linear interpolieren zwischen 2000K und 6500K
-        ratio = (sun_position.altitude - 10) / (60 - 10)
-        color_temp = int(2000 + ratio * (6500 - 2000))
+        # Base intensity is derived from sun elevation using a sine function:
+        # This is a simple physical approximation: sunlight intensity ∝ sin(elevation)
+        base_intensity = math.sin(math.radians(elevation)) * 100
 
-    rgb = kelvin_to_rgb(color_temp)
+        # Cloud attenuation factor:
+        # Originally we used a linear formula: (1 - cloud_coverage / 100)
+        # However, in practice, even fully overcast skies (100% clouds) let through too much light with that model.
+        #
+        # Therefore, we now use a quadratic attenuation:
+        #     cloud_factor = (1 - cloud_coverage / 100) ** 2
+        #
+        # This emphasizes that:
+        # - Light decreases gradually with low cloud coverage
+        # - But drops off sharply as clouds become denser
+        #
+        # Rationale:
+        # Heavy clouds like storm fronts block most sunlight, and human perception of brightness is nonlinear.
+        cloud_factor = (1 - cloud_coverage / 100) ** 2
 
-    return SunLightProperties(
-        brightness_percent=brightness,
-        color_temperature_k=color_temp,
-        rgb_color=rgb
+        # Compute final brightness and clamp to [0, 100]
+        brightness = max(0.0, min(base_intensity * cloud_factor, 100.0))
+
+        # Determine color temperature based on sun elevation:
+        # - Low elevation (<10°) → warm light (sunrise/sunset) → 2000K
+        # - High elevation (>60°) → cool daylight → 6500K
+        # - In between → linear interpolation between 2000K and 6500K
+        if elevation < 10:
+            color_temp = 2000
+        elif elevation > 60:
+            color_temp = 6500
+        else:
+            ratio = (elevation - 10) / (60 - 10)
+            color_temp = int(2000 + ratio * (6500 - 2000))
+
+        # Convert the Kelvin color temperature to an RGB representation
+        rgb = kelvin_to_rgb(color_temp)
+
+        # Assemble the sunlight properties
+        sunlight = SunLightProperties(
+            brightness_percent=brightness,
+            color_temperature_k=color_temp,
+            rgb_color=rgb
+        )
+
+    # Create and return the updated model with sunlight properties included
+    response = CompleteModel(
+        **complete_model.model_dump(),
+        sunlightproperties=sunlight
     )
+
+    # cache the updated model globally
+    cache.set_complete_model(response)
+
+    return response

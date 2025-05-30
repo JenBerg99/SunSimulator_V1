@@ -2,24 +2,23 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from api import router
 
+# Create the FastAPI app with metadata
 app = FastAPI(
-    title="Sonnenstand Simulator API",
-    description="Simuliert Sonnenstand basierend auf Ort, Zeit und Wetter.",
-    version="1.0.0"
+    title="Sun Simulator API",
+    description="Simulates sunlight conditions based on location, time, and weather.",
+    version="1.0.1"
 )
 
-# Global redirect to docs -- todo: remove in final version
+# Temporary redirect from root ("/") to the interactive documentation.
+# TODO: This is useful during development, but should be removed or changed before deployment.
 @app.get("/")
 async def root():
     return RedirectResponse(url="/docs")
 
+# Include all API routes from the 'api' module
 app.include_router(router)
 
+# Run the application using Uvicorn when the script is executed directly
 if __name__ == "__main__":
     import uvicorn
-    
-    # # Starte LCD-Display-Controller in einem Thread
-    # display_thread = threading.Thread(target=main_loop, daemon=True)
-    # display_thread.start()
-    
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)

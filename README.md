@@ -31,16 +31,23 @@ A FastAPI-based backend that simulates **sunlight properties** based on **locati
 
 ```bash
 .
-├── main.py                  # Entry point
-├── api.py                   # API routes
-├── cache.py                 # Global cache state (thread-safe)
-├── services.py              # Sunlight calculation logic
-├── models/                  # Pydantic data models
+├── main.py                   # Entry point
+├── api.py                    # API routes
+├── cache.py                  # Global cache state (thread-safe)
+├── services.py               # Sunlight calculation logic
+├── models/                   # Pydantic data models
 │   ├── CompleteModel.py
 │   ├── SunLightProperties.py
 │   ├── SunPosition.py
 │   ├── TimeSettings.py
 │   └── WeatherInfo.py
+├── rpi/                      # Services used for communicate with Raspberry Pi
+│   ├── led_service.py        # Service to controll the LED Strip
+│   ├── rotary_service.py     # Service to controll the rotary and the menu 
+│   ├── lcd/                  # Services for the LCD Screen 
+│     ├── Adafruit_LCD1602.py # Default file from manufacturer
+│     ├── PCF8574.py          # Default file from manufacturer
+│     ├── I2CLCD1602.py       # File to set Text to LCD Screen
 ```
 
 ---
@@ -105,7 +112,7 @@ pip install -r requirements.txt
 ### 3. Start the server
 
 ```bash
-uvicorn main:app --reload
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 ### 4. Access docs

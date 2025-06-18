@@ -59,8 +59,21 @@ def calculate_sunlight_properties(complete_model: CompleteModelSmall) -> Complet
         # Heavy clouds like storm fronts block most sunlight, and human perception of brightness is nonlinear.
         cloud_factor = (1 - cloud_coverage / 100) ** 2
 
-        # Compute final brightness and clamp to [0, 100]
-        brightness = max(0.0, min(base_intensity * cloud_factor, 100.0))
+        # Compute brightness 
+        brightness = base_intensity * cloud_factor
+
+        # Apply weather-based boost if conditions are ideal
+        ideal_conditions = (cloud_coverage < 20 and
+                            complete_model.weatherinfo.rain_mm < 1 and
+                            complete_model.weatherinfo.visibility >= 10000
+                            )
+    
+        # Ensure brightness is at least 85% under ideal conditions
+        if ideal_conditions:
+            brightness = max(brightness, 85.0)
+
+        # Clamp brightness to [0, 100]
+        brightness = max(0.0, min(brightness, 100.0))
 
         # Determine color temperature based on sun elevation:
         # - Low elevation (<10°) → warm light (sunrise/sunset) → 2000K

@@ -24,7 +24,7 @@ class GlobalCache:
             cloud_coverage_percent=0.0
         )                
         self.sunlight_properties = SunLightProperties(
-            brightness_percent=1,
+            brightness_percent=5,
             color_temperature_k=2000,
             rgb_color=[255,255,255]
         )           
@@ -34,7 +34,17 @@ class GlobalCache:
             weatherinfo=self.weather_info,
             sunlightproperties=self.sunlight_properties
         )
-        
+        self._observers = []
+
+    def register_observer(self, callback):
+        """Register Callback Function"""
+        self._observers.append(callback)    
+
+    def _notify_observer(self):
+        """Notify all Observer"""
+        for callback in self._observers:
+            callback(self.sunlight_properties)
+    
     def get_time(self):
         with self.lock:
             return self.time_settings
@@ -63,9 +73,10 @@ class GlobalCache:
         with self.lock:
             return self.sunlight_properties
 
-    def set_sunlight_properties(self, sunlight: SunLightProperties):
+    def set_sunlight_properties(self, sunlight: SunLightProperties):        
         with self.lock:
-            self.sunlight_properties = sunlight
+            self.sunlight_properties = sunlight     
+        self._notify_observer()       
 
     def get_complete_model(self):
         with self.lock:
@@ -84,5 +95,6 @@ class GlobalCache:
                 weatherinfo=self.weather_info,
                 sunlightproperties=self.sunlight_properties
             )
+        self._notify_observer()
 
 cache = GlobalCache()
